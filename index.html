@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Você é linda</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime&display=swap">
+<style>
+  :root { --pink: #ff5fa8; --pink-soft: #ff8cc6; --bg: #000; color-scheme: dark; }
+  html, body { height: 100%; margin: 0; background: #000; overflow: hidden; overscroll-behavior: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  body { font-family: "Courier Prime", "Courier New", Courier, monospace; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: transparent; z-index: 1; pointer-events: none; }
+  #start {
+    position: fixed; z-index: 2; inset: 0; margin: auto; width: max-content; height: max-content;
+    background: transparent; color: var(--pink); border: 1px solid var(--pink);
+    font: inherit; font-size: clamp(1.1rem, 4vw, 1.6rem); letter-spacing: .04em;
+    padding: .8em 1.6em; max-width: calc(100vw - 2rem); min-height: 48px; cursor: pointer; -webkit-appearance: none; appearance: none; transition: opacity .8s ease, box-shadow .3s ease, background .3s ease;
+  }
+  #start:hover, #start:focus-visible { box-shadow: 0 0 24px rgba(255,95,168,.55); background: rgba(255,95,168,.08); outline: none; }
+  #start.gone { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<button id="start" type="button">Clique aqui.</button>
+<canvas id="cv"></canvas>
+
+<script>
+(function () {
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var btn = document.getElementById('start');
+  var PHRASE = 'Você é linda, eu te amo   ';
+  var FILL = 5, PAUSE = 0.8, GATHER = 2.5, HOLD = 5, FADE = 1;
+  var CYCLE = FILL + PAUSE + GATHER + HOLD + FADE;
+  var W, H, dpr, fs, cw, lh, P = [], hcx = 0, hcy = 0, t0 = 0, running = false;
+
+  function ch(i) { return PHRASE.charAt(i % PHRASE.length); }
+  function clamp(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function ease(x) { return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+
+  function layout() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2); W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fs = Math.max(11, Math.min(20, Math.round(Math.min(W, H) / 28)));
+    ctx.font = fs + 'px "Courier Prime","Courier New",Courier,monospace';
+    cw = ctx.measureText('M').width; lh = fs * 1.45;
+    var cols = Math.floor(W / cw), rows = Math.floor(H / lh);
+    var ox = (W - cols * cw) / 2, oy = (H - rows * lh) / 2;
+    var S = Math.min(W / 2.8, H / 2.6), cx = W / 2, cy = H / 2 + 0.05 * S;
+    hcx = cx; hcy = H / 2;
+    P = []; var hearts = [];
+    for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+      var x = ox + c * cw + cw / 2, y = oy + r * lh + lh / 2;
+      P.push({ x: x, y: y, ch: ch(r * cols + c), s: Math.random(), a: .65 + Math.random() * .35, inH: false });
+      var nx = (x - cx) / S, ny = -(y - cy) / S;
+      var q = nx * nx + ny * ny - 1;
+      if (q * q * q - nx * nx * ny * ny * ny <= 0) hearts.push({ x: x, y: y });
+    }
+    var N = P.length, M = hearts.length;
+    for (var j = 0; j < M; j++) {
+      var p = P[Math.floor(j * N / M)];
+      p.inH = true; p.hx = hearts[j].x; p.hy = hearts[j].y; p.hch = ch(j);
+    }
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!running) return;
+    var t = (now - t0) / 1000, c = t % CYCLE, N = P.length, i, p;
+    ctx.clearRect(0, 0, W, H);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = fs + 'px "Courier Prime","Courier New",Courier,monospace';
+
+    if (c < FILL + PAUSE) {
+      var n = Math.min(N, Math.floor(c / FILL * N));
+      ctx.fillStyle = '#ff5fa8';
+      for (i = 0; i < n; i++) { p = P[i]; ctx.globalAlpha = p.a; ctx.fillText(p.ch, p.x, p.y); }
+      ctx.globalAlpha = 1; ctx.fillStyle = '#ffd0e8';
+      for (i = Math.max(0, n - 6); i < n; i++) { p = P[i]; ctx.fillText(p.ch, p.x, p.y); }
+      return;
+    }
+
+    var g = (c - FILL - PAUSE) / GATHER;
+    if (g < 1) {
+      ctx.fillStyle = '#ff5fa8';
+      for (i = 0; i < N; i++) {
+        p = P[i];
+        var e = ease(clamp(g * 1.5 - p.s * 0.5));
+        if (p.inH) {
+          ctx.globalAlpha = p.a;
+          ctx.fillText(e > 0 ? p.hch : p.ch, p.x + (p.hx - p.x) * e, p.y + (p.hy - p.y) * e);
+        } else {
+          ctx.globalAlpha = p.a * (1 - e);
+          if (ctx.globalAlpha > 0.01) ctx.fillText(p.ch, p.x + (W / 2 - p.x) * e * .25, p.y + (hcy - p.y) * e * .25);
+        }
+      }
+      ctx.globalAlpha = 1; return;
+    }
+
+    var h = c - FILL - PAUSE - GATHER;
+    var fade = h > HOLD ? 1 - (h - HOLD) / FADE : 1;
+    var beat = 1 + 0.025 * Math.pow(Math.sin(h * 2.6), 2) * (Math.sin(h * 5.2) > -2 ? 1 : 0);
+    ctx.save(); ctx.translate(hcx, hcy); ctx.scale(beat, beat); ctx.translate(-hcx, -hcy);
+    ctx.fillStyle = '#ff5fa8';
+    for (i = 0; i < N; i++) {
+      p = P[i]; if (!p.inH) continue;
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.a + 0.1 * Math.sin(h * 2 + p.s * 20))) * fade;
+      ctx.fillText(p.hch, p.hx, p.hy);
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+
+  btn.addEventListener('click', function () {
+    btn.classList.add('gone');
+    layout(); t0 = performance.now(); running = true;
+    setTimeout(function () { btn.style.display = 'none'; }, 900);
+  });
+  var rt;
+  function onResize() {
+    clearTimeout(rt);
+    rt = setTimeout(function () {
+      if (!running) return;
+      var w = window.innerWidth, h = window.innerHeight;
+      if (w === W && h === H) return;
+      var big = w !== W || Math.abs(h - H) >= 140;
+      layout();
+      if (big) t0 = performance.now();
+    }, 200);
+  }
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
